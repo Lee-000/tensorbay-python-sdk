@@ -10,6 +10,15 @@ from typing import Dict
 import click
 
 from ..client.gas import DatasetClientType
+from ..client.requests import logger
+from ..exception import (
+    AccessDeniedError,
+    NameConflictError,
+    ResourceNotExistError,
+    StatusError,
+    TBRNError,
+    UnauthorizedError,
+)
 from .tbrn import TBRN, TBRNType
 from .utility import error, get_dataset_client, get_gas
 
@@ -17,26 +26,44 @@ from .utility import error, get_dataset_client, get_gas
 def _implement_branch(
     obj: Dict[str, str], tbrn: str, name: str, verbose: bool, is_delete: bool
 ) -> None:
-    info = TBRN(tbrn=tbrn)
-    if info.type != TBRNType.DATASET:
-        error(f'To operate a branch, "{info}" must be a dataset')
+    try:
+        debug = obj.pop("debug")
+        if not debug:
+            logger.disabled = True
 
-    gas = get_gas(**obj)
-    dataset_client = get_dataset_client(gas, info)
+        info = TBRN(tbrn=tbrn)
+        if info.type != TBRNType.DATASET:
+            error(f'To operate a branch, "{info}" must be a dataset')
 
-    if is_delete:
-        _delete_branch(dataset_client, info)
-        return
+        gas = get_gas(**obj)
+        dataset_client = get_dataset_client(gas, info)
 
-    if name:
-        _create_branch(dataset_client, name)
-    else:
-        _list_branches(dataset_client, verbose)
+        if is_delete:
+            _delete_branch(dataset_client, info)
+            return
+
+        if name:
+            _create_branch(dataset_client, name)
+        else:
+            _list_branches(dataset_client, verbose)
+
+    except TBRNError as err:
+        error(str(err))
+    except StatusError:
+        error("Branch cannot be created from a draft")
+    except AccessDeniedError:
+        error("You do not have permission to operate this dataset")
+    except UnauthorizedError:
+        error("Invalid AccessKey")
+    except NameConflictError as err:
+        error(str(err))
+    except ResourceNotExistError as err:
+        error(str(err))
 
 
 def _create_branch(dataset_client: DatasetClientType, name: str) -> None:
-    if dataset_client.status.is_draft:
-        error("Branch cannot be created from a draft")
+    # if dataset_client.status.is_draft:
+    #     error("Branch cannot be created from a draft")
 
     if not dataset_client.status.commit_id:
         error(f'To create a branch, "{dataset_client.name}" must have commit history')

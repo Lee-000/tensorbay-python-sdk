@@ -29,6 +29,7 @@ def _implement_cli(
         "access_key": access_key,
         "url": url,
         "profile_name": profile_name,
+        "debug": debug,
     }
     client_config._x_source = "PYTHON-CLI"  # pylint: disable=protected-access
 
